@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seoul Doll Studio — 3D Dress Up</title>
+<style>
+:root{--pink:#f7c9dc;--rose:#e99bb9;--ink:#59424f;--cream:#fff9fb;--lilac:#e9def8}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:linear-gradient(135deg,#fff6fa,#f7efff);min-height:100vh}
+header{text-align:center;padding:20px 12px 10px}header h1{margin:0;font-family:Georgia,serif;font-size:clamp(27px,5vw,42px);letter-spacing:1px;color:#b45e83}header p{margin:6px 0 0;font-size:13px;color:#987687}
+.app{max-width:1100px;margin:auto;padding:12px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:16px}
+.stage,.panel{background:#ffffffd9;border:1px solid #f2d9e5;border-radius:24px;box-shadow:0 12px 35px #b77b9618;overflow:hidden}
+.stage{position:relative;min-height:610px;background:radial-gradient(circle at 50% 35%,#fff 0,#fcebf3 55%,#f4e9fa 100%)}
+#scene{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.hint{position:absolute;left:14px;top:14px;background:#fff9;padding:8px 12px;border-radius:20px;font-size:12px;backdrop-filter:blur(8px)}
+.stage-actions{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:10px 13px;background:#f8e3ed;color:#8d4d6b;font-weight:650;transition:.18s}
+button:hover{transform:translateY(-2px);background:#f2cddd}button.active{background:#d77fa3;color:white}
+.stage-actions button{background:#fff;color:#a45d7d;box-shadow:0 4px 14px #88536b22}
+.panel{padding:17px;max-height:700px;overflow:auto}
+.panel h2{font-size:18px;margin:0 0 4px;color:#a95c7e}.sub{font-size:12px;color:#a78c9a;margin:0 0 15px}
+.tabs{display:flex;gap:6px;overflow:auto;padding-bottom:9px}.tabs button{white-space:nowrap;font-size:12px;padding:9px 11px}
+.section{border-top:1px solid #f3e4eb;padding:14px 0}.section h3{font-size:14px;margin:0 0 10px}
+.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.choice{background:#fff8fb;border:1px solid #f2dce7;border-radius:14px;padding:8px;text-align:center;font-size:12px;color:#765466}
+.choice .emoji{display:block;font-size:25px;margin-bottom:4px}.choice.selected{border:2px solid #d77fa3;background:#fff0f6;padding:7px}
+.colors{display:flex;gap:9px;flex-wrap:wrap}.swatch{width:30px;height:30px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 1px #e6cad7}
+.swatch.selected{box-shadow:0 0 0 2px #b75e83}
+.footer{text-align:center;font-size:11px;color:#a78c9a;padding:5px 12px 20px}
+@media(max-width:760px){.app{grid-template-columns:1fr;padding:9px}.stage{min-height:490px;height:65vh;max-height:620px}.panel{max-height:none}.choices{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>Seoul Doll Studio ♡</h1><p>Phối đồ cho nàng búp bê — Your little fashion world</p></header>
+<main class="app">
+<section class="stage">
+<canvas id="scene"></canvas>
+<div class="hint">☝ Kéo để xoay búp bê 360°</div>
+<div class="stage-actions">
+<button id="reset">↺ Làm mới</button><button id="spin">⟳ Tự xoay: Tắt</button><button id="save">♡ Lưu ảnh</button>
+</div>
+</section>
+<section class="panel">
+<h2>♡ Tủ đồ của Mina</h2><p class="sub">Chọn món đồ bạn thích để tạo outfit riêng nhé!</p>
+<nav class="tabs" id="tabs">
+<button class="active" data-tab="outfit">✨ Bộ đồ</button><button data-tab="hair">💇 Tóc</button><button data-tab="top">👚 Áo</button><button data-tab="bottom">👗 Váy & quần</button><button data-tab="shoes">👟 Giày</button><button data-tab="accessory">🎀 Phụ kiện</button>
+</nav>
+<div id="controls"></div>
+</section>
+</main>
+<p class="footer">Made with love in Seoul Doll Studio · Kéo nhân vật để ngắm outfit từ mọi góc độ</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<script>
+(() => {
+const canvas=document.querySelector('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(canvas.clientWidth,canvas.clientHeight,false);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#fbeef4');
+const camera=new THREE.PerspectiveCamera(32,1,.1,100);camera.position.set(0,2.15,7.7);camera.lookAt(0,1.65,0);
+scene.add(new THREE.HemisphereLight(0xffffff,0xd8b4c7,2));
+const key=new THREE.DirectionalLight(0xffffff,2.4);key.position.set(-3,6,5);key.castShadow=true;scene.add(key);
+const fill=new THREE.DirectionalLight(0xffd9e8,1.1);fill.position.set(4,3,-3);scene.add(fill);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(5,64),new THREE.MeshStandardMaterial({color:'#f7e3ec',roughness:.9}));floor.rotation.x=-Math.PI/2;floor.position.y=-.04;floor.receiveShadow=true;scene.add(floor);
+const platform=new THREE.Mesh(new THREE.CylinderGeometry(1.25,1.35,.16,64),new THREE.MeshStandardMaterial({color:'#f4cadd',roughness:.5}));platform.position.y=.04;platform.receiveShadow=true;scene.add(platform);
+const doll=new THREE.Group();scene.add(doll);
+const mat=(c,rough=.75)=>new THREE.MeshStandardMaterial({color:c,roughness:rough});
+const skin=mat('#f5c9ad'), blush=mat('#e99b9e'), dark=mat('#49313a'), white=mat('#fff8f7'), hairMat=mat('#49313a');
+function sphere(parent,x,y,z,sx,sy,sz,m){const o=new THREE.Mesh(new THREE.SphereGeometry(1,24,18),m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;parent.add(o);return o}
+function capsule(parent,a,b,r,m){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),16),m);o.position.copy(A.add(B).multiplyScalar(.5));o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());o.castShadow=true;parent.add(o);sphere(parent,...a,r,r,r,m);sphere(parent,...b,r,r,r,m);return o}
+const body=new THREE.Group();doll.add(body);
+sphere(body,0,2.55,0,.48,.58,.38,skin); // head
+sphere(body,0,2.14,0,.18,.22,.18,skin);
+sphere(body,-.49,2.53,0,.10,.15,.11,skin);sphere(body,.49,2.53,0,.10,.15,.11,skin);
+sphere(body,-.18,2.48,.34,.045,.065,.025,dark);sphere(body,.18,2.48,.34,.045,.065,.025,dark);
+sphere(body,-.18,2.38,.35,.055,.022,.012,blush);sphere(body,.18,2.38,.35,.055,.022,.012,blush);
+sphere(body,0,2.34,.37,.045,.035,.03,blush);
+const smile=new THREE.Mesh(new THREE.TorusGeometry(.075,.012,8,20,Math.PI),blush);smile.position.set(0,2.29,.36);smile.rotation.z=Math.PI;body.add(smile);
+capsule(body,[-.12,2.02,0],[.12,2.02,0],.15,skin);
+capsule(body,[-.25,1.96,0],[-.30,1.35,0],.18,skin);capsule(body,[.25,1.96,0],[.30,1.35,0],.18,skin);
+capsule(body,[-.30,1.35,0],[-.32,.63,0],.13,skin);capsule(body,[.30,1.35,0],[.32,.63,0],.13,skin);
+capsule(body,[-.30,.63,0],[-.32,.18,.05],.105,skin);capsule(body,[.30,.63,0],[.32,.18,.05],.105,skin);
+capsule(body,[-.43,1.96,0],[-.62,1.35,.02],.105,skin);capsule(body,[.43,1.96,0],[.62,1.35,.02],.105,skin);
+capsule(body,[-.62,1.35,.02],[-.60,1.14,.08],.09,skin);capsule(body,[.62,1.35,.02],[.60,1.14,.08],.09,skin);
+// hair cap and fringe
+const hair=new THREE.Group();body.add(hair);
+sphere(hair,0,2.79,-.015,.50,.42,.40,hairMat);
+sphere(hair,0,2.65,.27,.43,.20,.18,hairMat);
+const hairBack=sphere(hair,0,2.35,-.27,.46,.65,.25,hairMat);
+const hairSideL=sphere(hair,-.43,2.42,.02,.13,.48,.14,hairMat),hairSideR=sphere(hair,.43,2.42,.02,.13,.48,.14,hairMat);
+// clothing layers toggled
+const clothes=new THREE.Group();doll.add(clothes);
+let current={outfit:0,top:0,bottom:0,hair:0,shoes:0,accessory:0,hairColor:0,skinColor:0};
+const palettes={pink:'#f2a9c7',lilac:'#bda8e8',cream:'#fff0d9',blue:'#9ec8e8',mint:'#a8d8c6',red:'#d97891',black:'#51414e',white:'#fff8f4'};
+function clearGroup(g){while(g.children.length){const o=g.children.pop();o.geometry?.dispose();}}
+function rebuild(){
+clearGroup(clothes);
+const outfitSets=[
+{top:'#f4b8cf',bottom:'#fff0f4',kind:'dress'},
+{top:'#fff4e8',bottom:'#b7a3d9',kind:'skirt'},
+{top:'#a8d8d0',bottom:'#e9b5ca',kind:'pants'},
+{top:'#d7c1f1',bottom:'#f3d4a9',kind:'dress'},
+{top:'#e9a6a8',bottom:'#e8e1f6',kind:'skirt'},
+{top:'#9fc5e8',bottom:'#fff1dd',kind:'pants'}];
+const sets=outfitSets[current.outfit];
+const topColor=current.top?Object.values(palettes)[current.top-1]:sets.top;
+const botColor=current.bottom?Object.values(palettes)[(current.bottom+2)%Object.keys(palettes).length]:sets.bottom;
+const tm=mat(topColor),bm=mat(botColor);
+function cone(y,h,r1,r2,m){const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,32),m);o.position.y=y;o.castShadow=true;clothes.add(o);return o}
+function cylBetween(a,b,r,m){capsule(clothes,a,b,r,m)}
+// fitted top / blouse
+const blouse=new THREE.Mesh(new THREE.CylinderGeometry(.27,.34,.48,32),tm);blouse.position.y=1.77;blouse.castShadow=true;clothes.add(blouse);
+sphere(clothes,0,2.00,.01,.25,.12,.25,tm);
+if(current.bottom===0 && sets.kind==='dress'){
+cone(1.25,.75,.62,.28,bm);
+}else if((current.bottom===0 && sets.kind==='skirt')||current.bottom===1||current.bottom===2){
+cone(1.35,.52,.60,.31,bm);
+}else{
+cylBetween([-.16,1.05,0],[-.19,.2,0],.14,bm);cylBetween([.16,1.05,0],[.19,.2,0],.14,bm);
+}
+if(current.top===0){sphere(clothes,0,1.99,.22,.12,.10,.05,white)}
+// sleeves
+capsule(clothes,[-.29,1.91,0],[-.49,1.55,0],.13,tm);capsule(clothes,[.29,1.91,0],[.49,1.55,0],.13,tm);
+// shoes
+const shoeM=mat(current.shoes?Object.values(palettes)[(current.shoes+3)%8]:'#f7d9e5');
+sphere(clothes,-.32,.13,.13,.19,.11,.28,shoeM);sphere(clothes,.32,.13,.13,.19,.11,.28,shoeM);
+// belt bow
+if(current.accessory===1||current.accessory===4){sphere(clothes,0,1.55,.34,.11,.07,.05,mat('#d77fa3'));sphere(clothes,-.10,1.57,.34,.09,.07,.04,mat('#f5b4ce'));sphere(clothes,.10,1.57,.34,.09,.07,.04,mat('#f5b4ce'));}
+}
+function updateHair(){
+const colors=['#49313a','#241d28','#9b654c','#d7a45e','#d98ca9','#c9b5e8'];
+hairMat.color.set(colors[current.hairColor]);hair.children.forEach(o=>o.material=hairMat);
+hairBack.visible=current.hair!==1;hairSideL.visible=current.hair!==2;hairSideR.visible=current.hair!==2;
+if(current.hair===1){hairBack.scale.set(.26,.60,.23);hairBack.position.set(0,2.36,-.3)}else{hairBack.scale.set(.46,.65,.25);hairBack.position.set(0,2.35,-.27)}
+if(current.hair===2){hairSideL.scale.y=.25;hairSideR.scale.y=.25}else{hairSideL.scale.y=.48;hairSideR.scale.y=.48}
+}
+function updateAccessory(){
+const old=doll.getObjectByName('extra');if(old)doll.remove(old);
+const g=new THREE.Group();g.name='extra';doll.add(g);
+const gold=mat('#e9c46a'),pink=mat('#f2a9c7');
+if(current.accessory===2){sphere(g,-.42,2.92,.02,.12,.12,.09,pink);sphere(g,.42,2.92,.02,.12,.12,.09,pink)}
+if(current.accessory===3){const ring=new THREE.Mesh(new THREE.TorusGeometry(.25,.025,8,32),gold);ring.position.set(0,2.0,.1);ring.rotation.x=Math.PI/2;g.add(ring)}
+if(current.accessory===4){sphere(g,0,2.92,.03,.12,.10,.08,pink);sphere(g,-.11,2.92,.03,.10,.08,.07,pink)}
+if(current.accessory===5){sphere(g,.60,1.32,.08,.15,.18,.10,mat('#d98eae'));capsule(g,[.48,1.48,.08],[.56,1.62,.08],.025,gold)}
+}
+const sections={
+outfit:{title:'Bộ sưu tập outfit',items:[['🎀','Công chúa pastel'],['🩰','Nàng thơ lavender'],['🍃','Sweet mint'],['🌷','Pink date'],['🧁','Creamy cute'],['🦋','Blue sky']]},
+hair:{title:'Kiểu tóc',items:[['💇','Tóc dài'],['🎀','Tóc búi'],['✨','Tóc ngắn']]},
+top:{title:'Áo xinh',items:[['👚','Áo blouse'],['🧶','Áo len'],['💗','Áo croptop'],['🌸','Áo cổ vuông']]},
+bottom:{title:'Chân váy & quần',items:[['👗','Váy xòe'],['🩷','Chân váy'],['👖','Quần dài']]},
+shoes:{title:'Giày dép',items:[['👟','Sneaker'],['👠','Giày búp bê'],['🩰','Mary Jane'],['🥾','Boots']]},
+accessory:{title:'Phụ kiện',items:[['♡','Không phụ kiện'],['🎀','Nơ eo'],['🌸','Kẹp tóc'],['📿','Vòng cổ'],['💝','Nơ tóc'],['👜','Túi xách']]}
+};
+let activeTab='outfit';
+function render(){
+const data=sections[activeTab];let html=`<div class="section"><h3>${data.title}</h3><div class="choices">`;
+data.items.forEach((it,i)=>{let key=activeTab==='outfit'?'outfit':activeTab;let sel=current[key]===i;html+=`<button class="choice ${sel?'selected':''}" data-index="${i}"><span class="emoji">${it[0]}</span>${it[1]}</button>`});
+html+='</div></div>';
+if(activeTab==='hair'||activeTab==='top'||activeTab==='bottom'||activeTab==='shoes'){
+html+=`<div class="section"><h3>Chọn màu sắc</h3><div class="colors">`;
+Object.entries(palettes).forEach(([name,c],i)=>{html+=`<button class="swatch ${(activeTab==='hair'?current.hairColor:current[activeTab]||0)===i?'selected':''}" data-color="${i}" title="${name}" style="background:${c}"></button>`});
+html+='</div></div>';
+}
+document.querySelector('#controls').innerHTML=html;
+document.querySelectorAll('.choice').forEach(b=>b.onclick=()=>{const i=+b.dataset.index;current[activeTab==='outfit'?'outfit':activeTab]=i;if(activeTab==='hair')updateHair();if(activeTab==='accessory')updateAccessory();rebuild();render()});
+document.querySelectorAll('.swatch').forEach(b=>b.onclick=()=>{let i=+b.dataset.color;if(activeTab==='hair'){current.hairColor=i;updateHair()}else if(activeTab==='top')current.top=i;else if(activeTab==='bottom')current.bottom=i;else current.shoes=i;rebuild();render()});
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeTab=b.dataset.tab;render()});
+rebuild();updateHair();updateAccessory();render();
+let dragging=false,lastX=0,autoSpin=false;
+canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!dragging)return;doll.rotation.y+=(e.clientX-lastX)*.012;lastX=e.clientX});
+canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointercancel',()=>dragging=false);
+document.querySelector('#spin').onclick=()=>{autoSpin=!autoSpin;document.querySelector('#spin').textContent='⟳ Tự xoay: '+(autoSpin?'Bật':'Tắt')};
+document.querySelector('#reset').onclick=()=>{current={outfit:0,top:0,bottom:0,hair:0,shoes:0,accessory:0,hairColor:0,skinColor:0};doll.rotation.y=0;updateHair();updateAccessory();rebuild();render();};
+document.querySelector('#save').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.download='seoul-doll-outfit.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
+function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+window.addEventListener('resize',resize);
+function animate(){requestAnimationFrame(animate);if(autoSpin&&!dragging)doll.rotation.y+=.006;renderer.render(scene,camera)}resize();animate();
+})();
+</script>
+</body>
+</html>
